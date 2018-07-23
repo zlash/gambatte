@@ -35,16 +35,45 @@ struct SdlBlitter::SurfaceDeleter
 
 const int debugGridWidth = 5;
 const int debugGridHeight = 4;
+const int debugGridScreens = debugGridWidth*debugGridHeight;
+const int debugGridLineWidth = 10;
 
 struct SdlBlitter::DebugDisplay
 {
-	DebugDisplay(unsigned inW, unsigned inH) : inW(inW), inH(inH), w(inW * debugGridWidth), h(inH * debugGridHeight)
+	DebugDisplay(unsigned inW, unsigned inH) : inW(inW), inH(inH),
+											   cellW(inW + debugGridLineWidth), cellH(inH + debugGridLineWidth),
+											   w(cellW * debugGridWidth), h(cellH * debugGridHeight),
+											   curDisplay(1)
 	{
 		data = new unsigned char[w * h];
 	}
 
+	inline unsigned getPixelAddress(unsigned x, unsigned y, int display = -1)
+	{
+		display = (display < 0) ? curDisplay : display;
+
+		if (x < 0 || y < 0 || x >= inW || y >= inH)
+			return 0;
+
+		unsigned displayY = display / debugGridWidth;
+		unsigned displayX = display - displayY * debugGridWidth;
+
+		return (y + displayY * cellH) * w + displayX * cellW + x;
+	}
+
+	inline unsigned char getPixel(unsigned x, unsigned y, int display = -1)
+	{
+		return data[getPixelAddress(x, y, display)];
+	}
+
+	inline void setPixel(unsigned x, unsigned y, unsigned char value, int display = -1)
+	{
+		data[getPixelAddress(x, y, display)] = value;
+	}
+
 	unsigned char *data;
-	unsigned inW, inH, w, h;
+	unsigned inW, inH, cellW, cellH, w, h;
+	unsigned curDisplay;
 };
 
 SdlBlitter::SdlBlitter(unsigned inwidth, unsigned inheight,
@@ -84,6 +113,27 @@ SdlBlitter::PixelBuffer SdlBlitter::inBuffer() const
 		pb.pixels = static_cast<char *>(s->pixels) + s->offset;
 		pb.format = s->format->BitsPerPixel == 16 ? RGB16 : RGB32;
 		pb.pitch = s->pitch / s->format->BytesPerPixel;
+
+		for (int i = 0; i < 10000; i++)
+		{
+			debugDisplay_->setPixel(rand() % debugDisplay_->inW, rand() % debugDisplay_->inH, rand() % 0xFF, rand()%debugGridScreens);
+		}
+
+		for (unsigned y = 0; y < debugDisplay_->h; y++)
+		{
+			for (unsigned x = 0; x < debugDisplay_->w; x++)
+			{
+				if (x < debugDisplay_->inW && y < debugDisplay_->inH)
+				{
+					continue;
+				}
+				int idx = y * debugDisplay_->w + x;
+				for (int i = 0; i < 4; i++)
+				{
+					((unsigned char *)pb.pixels)[(idx * 4) + i] = debugDisplay_->data[idx];
+				}
+			}
+		}
 	}
 
 	return pb;
@@ -94,6 +144,7 @@ inline void SdlBlitter::swScale()
 {
 	T const *src = reinterpret_cast<T *>(static_cast<char *>(surface_->pixels) + surface_->offset);
 	T *dst = reinterpret_cast<T *>(static_cast<char *>(screen_->pixels) + screen_->offset);
+
 	scaleBuffer(src, dst, surface_->w, surface_->h,
 				screen_->pitch / screen_->format->BytesPerPixel, screen_->h / surface_->h);
 }
@@ -120,6 +171,7 @@ void SdlBlitter::present()
 		SDL_UnlockYUVOverlay(overlay_.get());
 		SDL_DisplayYUVOverlay(overlay_.get(), &dstr);
 		SDL_LockYUVOverlay(overlay_.get());
+		printf("YUV ");
 	}
 	else
 	{
