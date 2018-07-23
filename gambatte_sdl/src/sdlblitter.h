@@ -25,6 +25,9 @@
 struct SDL_Overlay;
 struct SDL_Surface;
 
+
+
+
 class SdlBlitter {
 public:
 	enum PixelFormat { RGB32, RGB16, UYVY };
@@ -45,7 +48,9 @@ public:
 
 private:
 	struct SurfaceDeleter;
+	struct DebugDisplay;
 
+	DebugDisplay *debugDisplay_;
 	SDL_Surface *screen_;
 	scoped_ptr<SDL_Surface, SurfaceDeleter> const surface_;
 	scoped_ptr<SDL_Overlay, SurfaceDeleter> const overlay_;
