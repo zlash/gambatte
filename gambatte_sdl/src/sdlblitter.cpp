@@ -35,8 +35,13 @@ struct SdlBlitter::SurfaceDeleter
 
 const int debugGridWidth = 5;
 const int debugGridHeight = 4;
-const int debugGridScreens = debugGridWidth*debugGridHeight;
+const int debugGridScreens = debugGridWidth * debugGridHeight;
 const int debugGridLineWidth = 10;
+
+const int gbWidth = 160;
+const int gbHeight = 144;
+const int debugTargetWidth = 120;
+const int debugTargetHeight = 64;
 
 struct SdlBlitter::DebugDisplay
 {
@@ -71,6 +76,12 @@ struct SdlBlitter::DebugDisplay
 		data[getPixelAddress(x, y, display)] = value;
 	}
 
+	void reset()
+	{
+		curDisplay = 1;
+		memset(data, 0, w * h);
+	}
+
 	unsigned char *data;
 	unsigned inW, inH, cellW, cellH, w, h;
 	unsigned curDisplay;
@@ -98,6 +109,19 @@ SdlBlitter::~SdlBlitter()
 {
 }
 
+static inline int biggest(int *arr, int n)
+{
+	int pos = 0;
+	for (int i = 1; i < n; i++)
+	{
+		if (arr[i] > arr[pos])
+		{
+			pos = i;
+		}
+	}
+	return pos;
+}
+
 SdlBlitter::PixelBuffer SdlBlitter::inBuffer() const
 {
 	PixelBuffer pb = {0, 0, RGB32};
@@ -114,9 +138,81 @@ SdlBlitter::PixelBuffer SdlBlitter::inBuffer() const
 		pb.format = s->format->BitsPerPixel == 16 ? RGB16 : RGB32;
 		pb.pitch = s->pitch / s->format->BytesPerPixel;
 
-		for (int i = 0; i < 10000; i++)
+		debugDisplay_->reset();
+
+		//Downscale RGB to one value
+		unsigned char *pd = ((unsigned char *)pb.pixels);
+		for (int y = 0; y < debugDisplay_->inH; y++)
 		{
-			debugDisplay_->setPixel(rand() % debugDisplay_->inW, rand() % debugDisplay_->inH, rand() % 0xFF, rand()%debugGridScreens);
+			for (int x = 0; x < debugDisplay_->inW; x++)
+			{
+				int idx = debugDisplay_->getPixelAddress(x, y, 0);
+				int avg = 0.0722 * pd[idx * 4] + 0.7152 * pd[idx * 4 + 1] + 0.2126 * pd[idx * 4 + 2];
+				debugDisplay_->setPixel(x, y, avg);
+			}
+		}
+		int bwDisplay = debugDisplay_->curDisplay++;
+
+		//Sovel
+		for (unsigned y = 1; y < debugDisplay_->inH - 1; y++)
+		{
+			for (unsigned x = 1; x < debugDisplay_->inW - 1; x++)
+			{
+				//range dx, dy = -1020 ~ 1020
+				int dx = debugDisplay_->getPixel(x - 1, y - 1, bwDisplay) + debugDisplay_->getPixel(x - 1, y + 1, bwDisplay) + 2 * debugDisplay_->getPixel(x - 1, y, bwDisplay) - debugDisplay_->getPixel(x + 1, y - 1, bwDisplay) - debugDisplay_->getPixel(x + 1, y + 1, bwDisplay) - 2 * debugDisplay_->getPixel(x + 1, y, bwDisplay);
+
+				int dy = debugDisplay_->getPixel(x - 1, y - 1, bwDisplay) + debugDisplay_->getPixel(x + 1, y - 1, bwDisplay) + 2 * debugDisplay_->getPixel(x, y - 1, bwDisplay) - debugDisplay_->getPixel(x - 1, y + 1, bwDisplay) - debugDisplay_->getPixel(x + 1, y + 1, bwDisplay) - 2 * debugDisplay_->getPixel(x, y + 1, bwDisplay);
+
+				unsigned char val = ((dx * dx + dy * dy) / 2080800.0) * 255.0;
+
+				debugDisplay_->setPixel(x, y, val);
+			}
+		}
+
+		int sovelDisplay = debugDisplay_->curDisplay++;
+
+		//Vertical Shred
+		const int maxRemovalCandidatesV = gbWidth - debugTargetWidth;
+		int hRemovalCandidatesVSum[maxRemovalCandidatesV];
+
+		for (unsigned x = 0; x < debugDisplay_->inW; x++)
+		{
+			int sum = 0;
+			for (unsigned y = 0; y < debugDisplay_->inH; y++)
+			{
+				sum += debugDisplay_->getPixel(x, y, sovelDisplay);
+			}
+			if (x < maxRemovalCandidatesV)
+			{
+				hRemovalCandidatesVSum[x] = sum;
+			}
+			else
+			{
+				int pos = biggest(hRemovalCandidatesVSum, maxRemovalCandidatesV);
+				if (hRemovalCandidatesVSum[pos] > sum)
+				{
+					hRemovalCandidatesVSum[pos] = sum;
+				}
+			}
+		}
+
+		int biggestPos = biggest(hRemovalCandidatesVSum, maxRemovalCandidatesV);
+		int biggestSum = hRemovalCandidatesVSum[biggestPos];
+		int columnSkip = 0;
+
+		for (unsigned x = 0; x < debugDisplay_->inW; x++)
+		{
+			int sum = 0;
+			for (unsigned y = 0; y < debugDisplay_->inH; y++)
+			{
+				auto p = debugDisplay_->getPixel(x, y, bwDisplay);
+				sum += debugDisplay_->getPixel(x, y, sovelDisplay);
+				debugDisplay_->setPixel(x - columnSkip, y, p);
+			}
+			if (columnSkip < maxRemovalCandidatesV && sum <= biggestSum)
+			{
+				columnSkip++;
+			}
 		}
 
 		for (unsigned y = 0; y < debugDisplay_->h; y++)
