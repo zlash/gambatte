@@ -40,8 +40,8 @@ const int debugGridLineWidth = 10;
 
 const int gbWidth = 160;
 const int gbHeight = 144;
-const int debugTargetWidth = 120;
-const int debugTargetHeight = 64;
+const int debugTargetWidth = 80;
+const int debugTargetHeight = 60;
 
 struct SdlBlitter::DebugDisplay
 {
@@ -171,6 +171,24 @@ SdlBlitter::PixelBuffer SdlBlitter::inBuffer() const
 
 		int sovelDisplay = debugDisplay_->curDisplay++;
 
+		//Sovel
+		for (unsigned y = 1; y < debugDisplay_->inH - 1; y++)
+		{
+			for (unsigned x = 1; x < debugDisplay_->inW - 1; x++)
+			{
+				//range dx, dy = -1020 ~ 1020
+				int val = abs(debugDisplay_->getPixel(x, y, bwDisplay) - debugDisplay_->getPixel(x - 1, y, bwDisplay));
+				val += abs(debugDisplay_->getPixel(x, y, bwDisplay) - debugDisplay_->getPixel(x + 1, y, bwDisplay));
+				val += abs(debugDisplay_->getPixel(x, y, bwDisplay) - debugDisplay_->getPixel(x, y - 1, bwDisplay));
+				val += abs(debugDisplay_->getPixel(x, y, bwDisplay) - debugDisplay_->getPixel(x, y + 1, bwDisplay));
+				debugDisplay_->setPixel(x, y, val / 4);
+			}
+		}
+
+		int contrastDisplay = debugDisplay_->curDisplay++;
+
+		int intensityDisplay = contrastDisplay;
+
 		//Vertical Shred
 		const int maxRemovalCandidatesV = gbWidth - debugTargetWidth;
 		int hRemovalCandidatesVSum[maxRemovalCandidatesV];
@@ -180,7 +198,7 @@ SdlBlitter::PixelBuffer SdlBlitter::inBuffer() const
 			int sum = 0;
 			for (unsigned y = 0; y < debugDisplay_->inH; y++)
 			{
-				sum += debugDisplay_->getPixel(x, y, sovelDisplay);
+				sum += debugDisplay_->getPixel(x, y, intensityDisplay);
 			}
 			if (x < maxRemovalCandidatesV)
 			{
@@ -206,12 +224,26 @@ SdlBlitter::PixelBuffer SdlBlitter::inBuffer() const
 			for (unsigned y = 0; y < debugDisplay_->inH; y++)
 			{
 				auto p = debugDisplay_->getPixel(x, y, bwDisplay);
-				sum += debugDisplay_->getPixel(x, y, sovelDisplay);
+				sum += debugDisplay_->getPixel(x, y, intensityDisplay);
 				debugDisplay_->setPixel(x - columnSkip, y, p);
 			}
 			if (columnSkip < maxRemovalCandidatesV && sum <= biggestSum)
 			{
 				columnSkip++;
+			}
+		}
+
+		int verticalShred = debugDisplay_->curDisplay++;
+
+		//Random sampler
+		for (unsigned y = 0; y < debugDisplay_->inH; y++)
+		{
+			for (unsigned x = 0; x < debugDisplay_->inW; x++)
+			{
+				int xx=x*2+rand()%2;
+				int yy=y*2+rand()%2;
+				auto p = debugDisplay_->getPixel(xx, yy, bwDisplay);
+				debugDisplay_->setPixel(x, y, p);
 			}
 		}
 
