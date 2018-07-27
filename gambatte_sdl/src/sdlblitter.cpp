@@ -240,10 +240,19 @@ SdlBlitter::PixelBuffer SdlBlitter::inBuffer() const
 		{
 			for (unsigned x = 0; x < debugDisplay_->inW; x++)
 			{
-				int xx=x*2+rand()%2;
-				int yy=y*2+rand()%2;
-				auto p = debugDisplay_->getPixel(xx, yy, bwDisplay);
-				debugDisplay_->setPixel(x, y, p);
+				int p = 0;
+				int offset = rand() % 4;
+				auto xx = x * 2;
+				auto yy = y * 2;
+
+				int offsets[][2] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
+
+				for (int i = 0; i < 3; i++)
+				{
+					p += debugDisplay_->getPixel(xx + offsets[(i + offset) % 4][0], yy + offsets[(i + offset) % 4][1], bwDisplay);
+				}
+
+				debugDisplay_->setPixel(x, y, p/3);
 			}
 		}
 
